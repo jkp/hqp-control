@@ -24,7 +24,16 @@ Set environment variables or use defaults:
 ```bash
 export HQP_HQPLAYER__HOST=hqplayer.local  # HQPlayer server hostname
 export HQP_PROFILES__SSH_USER=hqplayer    # SSH user for profile switching
+export HQP_PROFILES__MODE=ssh             # "ssh" (remote) or "local" (same machine)
+export HQP_SERVER__HOST=0.0.0.0           # IP to bind server to
+export HQP_SERVER__PORT=9100              # Server port
 ```
+
+### Profile Management Modes
+
+**SSH mode** (default): For running the API on a different machine than HQPlayer. Uses SSH to copy config files and restart the service.
+
+**Local mode**: For running the API on the same machine as HQPlayer. Uses direct file operations. Set `HQP_PROFILES__MODE=local`.
 
 ## CLI Usage
 
@@ -50,8 +59,10 @@ hqp pause
 hqp stop
 
 # HTTP Server
-hqp serve                       # Start on port 9100
+hqp serve                       # Start on 0.0.0.0:9100
 hqp serve --port 8080           # Custom port
+hqp serve --bind 127.0.0.1      # Localhost only
+hqp serve --bind 100.x.x.x      # Tailscale IP only
 ```
 
 ## HTTP API
