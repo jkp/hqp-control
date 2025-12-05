@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from hqp.config import settings
 from hqp.models import HQPStatus, Profile
-from hqp.profiles import ProfileManager
+from hqp.profiles import BaseProfileManager, create_profile_manager
 from hqp.xml_client import HQPClient
 
 
@@ -39,7 +39,7 @@ class ResultResponse(BaseModel):
 
 # Global clients
 hqp_client: Optional[HQPClient] = None
-profile_manager: Optional[ProfileManager] = None
+profile_manager: Optional[BaseProfileManager] = None
 
 
 @asynccontextmanager
@@ -52,7 +52,8 @@ async def lifespan(app: FastAPI):
         port=settings.hqplayer.xml_port,
     )
 
-    profile_manager = ProfileManager(
+    profile_manager = create_profile_manager(
+        mode=settings.profiles.mode,
         host=settings.hqplayer.host,
         user=settings.profiles.ssh_user,
         profiles_path=settings.profiles.profiles_path,

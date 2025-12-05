@@ -24,66 +24,84 @@ class TestProfileManager:
 
     @pytest.mark.asyncio
     async def test_list_profiles(self, manager):
-        mock_output = "Bedroom.xml\nLiving Room.xml\nOffice.xml\n"
-
-        with patch.object(manager, "_run_ssh_command", new_callable=AsyncMock) as mock_ssh:
-            mock_ssh.return_value = (mock_output, "", 0)
+        with patch.object(manager, "_list_files", new_callable=AsyncMock) as mock_list:
+            mock_list.return_value = ["Bedroom.xml", "Living Room.xml", "Office.xml"]
             profiles = await manager.list_profiles()
 
             assert len(profiles) == 3
-            assert profiles[0].name == "Bedroom"
-            assert profiles[1].name == "Living Room"
-            assert profiles[2].name == "Office"
-            mock_ssh.assert_called_once()
+            names = [p.name for p in profiles]
+            assert "Bedroom" in names
+            assert "Living Room" in names
+            assert "Office" in names
+            mock_list.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_list_profiles_empty(self, manager):
-        with patch.object(manager, "_run_ssh_command", new_callable=AsyncMock) as mock_ssh:
-            mock_ssh.return_value = ("", "", 0)
+        with patch.object(manager, "_list_files", new_callable=AsyncMock) as mock_list:
+            mock_list.return_value = []
             profiles = await manager.list_profiles()
             assert len(profiles) == 0
 
     @pytest.mark.asyncio
     async def test_switch_profile(self, manager):
-        with patch.object(manager, "_run_ssh_command", new_callable=AsyncMock) as mock_ssh:
-            with patch.object(manager, "_wait_for_hqplayer", new_callable=AsyncMock) as mock_wait:
-                mock_ssh.return_value = ("", "", 0)
-                mock_wait.return_value = True
-                result = await manager.switch_profile("Bedroom")
+        with patch.object(manager, "_copy_file", new_callable=AsyncMock) as mock_copy:
+            with patch.object(manager, "_run_command", new_callable=AsyncMock) as mock_cmd:
+                with patch.object(manager, "_wait_for_hqplayer", new_callable=AsyncMock) as mock_wait:
+                    mock_copy.return_value = True
+                    mock_cmd.return_value = ("", "", 0)
+                    mock_wait.return_value = True
+                    result = await manager.switch_profile("Bedroom")
 
-                assert result is True
-                # Should have been called twice: cp + restart
-                assert mock_ssh.call_count == 2
+                    assert result is True
+                    mock_copy.assert_called_once()
+                    mock_cmd.assert_called_once()  # systemctl restart
 
     @pytest.mark.asyncio
     async def test_switch_profile_with_spaces(self, manager):
-        with patch.object(manager, "_run_ssh_command", new_callable=AsyncMock) as mock_ssh:
-            with patch.object(manager, "_wait_for_hqplayer", new_callable=AsyncMock) as mock_wait:
-                mock_ssh.return_value = ("", "", 0)
-                mock_wait.return_value = True
-                result = await manager.switch_profile("Living Room")
+        with patch.object(manager, "_copy_file", new_callable=AsyncMock) as mock_copy:
+            with patch.object(manager, "_run_command", new_callable=AsyncMock) as mock_cmd:
+                with patch.object(manager, "_wait_for_hqplayer", new_callable=AsyncMock) as mock_wait:
+                    mock_copy.return_value = True
+                    mock_cmd.return_value = ("", "", 0)
+                    mock_wait.return_value = True
+                    result = await manager.switch_profile("Living Room")
 
-                assert result is True
-                # Check the cp command properly quotes the path
-                cp_call = mock_ssh.call_args_list[0]
-                assert "Living Room" in cp_call[0][0]
+                    assert result is True
+                    # Check the copy was called with the right paths
+                    copy_call = mock_copy.call_args
+                    assert "Living Room" in copy_call[0][0]
 
     @pytest.mark.asyncio
     async def test_switch_profile_failure(self, manager):
-        with patch.object(manager, "_run_ssh_command", new_callable=AsyncMock) as mock_ssh:
-            mock_ssh.return_value = ("", "cp: cannot stat: No such file", 1)
+        with patch.object(manager, "_copy_file", new_callable=AsyncMock) as mock_copy:
+            mock_copy.return_value = False
             result = await manager.switch_profile("NonExistent")
             assert result is False
 
     @pytest.mark.asyncio
     async def test_get_current_profile(self, manager):
-        # Current profile detection would compare config file hash to profiles
-        # For now, return None if unknown
-        with patch.object(manager, "_run_ssh_command", new_callable=AsyncMock) as mock_ssh:
-            # Simulate md5sum output
-            mock_ssh.side_effect = [
-                ("abc123  /etc/hqplayer/hqplayerd.xml\n", "", 0),  # current config
-                ("abc123  Bedroom.xml\ndef456  Living Room.xml\nxyz789  Office.xml\n", "", 0),  # profiles
-            ]
-            current = await manager.get_current_profile()
-            assert current == "Bedroom"
+        # Current profile detection compares config hash to profile hashes
+        with patch.object(manager, "_list_files", new_callable=AsyncMock) as mock_list:
+            with patch.object(manager, "_get_file_hash", new_callable=AsyncMock) as mock_hash:
+                mock_list.return_value = ["Bedroom.xml", "Living Room.xml", "Office.xml"]
+                # First call is for current config, then each profile
+                mock_hash.side_effect = [
+                    "abc123",  # current config hash
+                    "abc123",  # Bedroom.xml - matches!
+                ]
+                current = await manager.get_current_profile()
+                assert current == "Bedroom"
+
+    @pytest.mark.asyncio
+    async def test_get_current_profile_no_match(self, manager):
+        with patch.object(manager, "_list_files", new_callable=AsyncMock) as mock_list:
+            with patch.object(manager, "_get_file_hash", new_callable=AsyncMock) as mock_hash:
+                mock_list.return_value = ["Bedroom.xml", "Office.xml"]
+                # Config hash doesn't match any profile
+                mock_hash.side_effect = [
+                    "xyz999",  # current config hash
+                    "abc123",  # Bedroom.xml
+                    "def456",  # Office.xml
+                ]
+                current = await manager.get_current_profile()
+                assert current is None

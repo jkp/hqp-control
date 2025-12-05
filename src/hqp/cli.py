@@ -6,7 +6,7 @@ import sys
 import click
 
 from hqp.config import settings
-from hqp.profiles import ProfileManager
+from hqp.profiles import create_profile_manager
 from hqp.xml_client import HQPClient
 
 
@@ -18,9 +18,10 @@ def get_client() -> HQPClient:
     )
 
 
-def get_profile_manager() -> ProfileManager:
+def get_profile_manager():
     """Create profile manager from settings."""
-    return ProfileManager(
+    return create_profile_manager(
+        mode=settings.profiles.mode,
         host=settings.hqplayer.host,
         user=settings.profiles.ssh_user,
         profiles_path=settings.profiles.profiles_path,
