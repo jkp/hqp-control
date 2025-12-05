@@ -209,12 +209,14 @@ def prev_track(ctx):
 
 
 @main.command()
-@click.option("--port", default=8000, help="Server port")
+@click.option("--port", default=9100, help="Server port")
+@click.option("--bind", default="0.0.0.0", help="IP address to bind to (e.g., 127.0.0.1 or Tailscale IP)")
 @click.pass_context
-def serve(ctx, port):
+def serve(ctx, port, bind):
     """Run the HTTP API server."""
     settings.server.port = port
-    click.echo(f"Starting HQPlayer Control API on port {port}...")
+    settings.server.host = bind
+    click.echo(f"Starting HQPlayer Control API on {bind}:{port}...")
     click.echo(f"HQPlayer host: {settings.hqplayer.host}")
 
     from hqp.server import run_server
